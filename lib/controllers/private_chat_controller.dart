@@ -1,75 +1,141 @@
-import 'package:get/get.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:get/get.dart';
+
+// class PrivateChatController extends GetxController {
+//   final FirebaseFirestore firestore = FirebaseFirestore.instance;
+//   final FirebaseAuth auth = FirebaseAuth.instance;
+
+//   User? get currentUser => auth.currentUser;
+
+//   Stream<QuerySnapshot> getMessagesStream(String chatId) {
+//     return firestore
+//         .collection('private_chats')
+//         .doc(chatId)
+//         .collection('messages')
+//         .orderBy('timestamp', descending: false)
+//         .snapshots();
+//   }
+
+//   Future<void> sendMessage(String chatId, String text) async {
+//     final userId = currentUser?.uid;
+//     if (userId == null) return;
+
+//     final messageData = {
+//       'senderId': userId,
+//       'message': text,
+//       'timestamp': FieldValue.serverTimestamp(),
+//       'isSeen': false,
+//     };
+
+//     final messagesRef = firestore.collection('private_chats').doc(chatId).collection('messages');
+//     await messagesRef.add(messageData);
+
+//     await firestore.collection('private_chats').doc(chatId).update({
+//       'lastMessage': text,
+//       'lastMessageTime': FieldValue.serverTimestamp(),
+//     });
+//   }
+
+//   Future<void> markMessagesAsSeen(String chatId, String receiverId) async {
+//     final userId = currentUser?.uid;
+//     if (userId == null) return;
+
+//     final messagesRef = firestore.collection('private_chats').doc(chatId).collection('messages');
+
+//     final unseenMessagesQuery = await messagesRef
+//         .where('senderId', isEqualTo: receiverId)
+//         .where('isSeen', isEqualTo: false)
+//         .get();
+
+//     final batch = firestore.batch();
+
+//     for (var doc in unseenMessagesQuery.docs) {
+//       batch.update(doc.reference, {'isSeen': true});
+//     }
+
+//     await batch.commit();
+//   }
+
+//   // Typing indicator methods:
+
+//   Future<void> updateTypingStatus(String chatId, bool isTyping) async {
+//     final userId = currentUser?.uid;
+//     if (userId == null) return;
+
+//     final typingDoc = firestore.collection('private_chats').doc(chatId).collection('typing_status').doc(userId);
+
+//     await typingDoc.set({'isTyping': isTyping});
+//   }
+
+//   Stream<Map<String, bool>> typingStatusStream(String chatId) {
+//     return firestore
+//         .collection('private_chats')
+//         .doc(chatId)
+//         .collection('typing_status')
+//         .snapshots()
+//         .map((snapshot) {
+//       final Map<String, bool> typingMap = {};
+//       for (var doc in snapshot.docs) {
+//         typingMap[doc.id] = doc['isTyping'] ?? false;
+//       }
+//       return typingMap;
+//     });
+//   }
+// }
+
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:get/get.dart';
 
 class PrivateChatController extends GetxController {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final User? currentUser = FirebaseAuth.instance.currentUser;
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final FirebaseAuth auth = FirebaseAuth.instance;
 
-  // Generate chatId consistently from two UIDs
-  String getChatId(String userId1, String userId2) {
-    return (userId1.compareTo(userId2) < 0)
-        ? '${userId1}_$userId2'
-        : '${userId2}_$userId1';
+  User? get currentUser => auth.currentUser;
+
+  Stream<QuerySnapshot> getMessagesStream(String chatId) {
+    return firestore
+        .collection('private_chats')
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: false)
+        .snapshots();
   }
 
-  // Create chat if not exists
-  Future<String> createOrGetChat(String otherUserId) async {
-    final currentId = currentUser!.uid;
-    final chatId = getChatId(currentId, otherUserId);
-
-    final doc = await _firestore.collection('private_chats').doc(chatId).get();
-
-    if (!doc.exists) {
-      await _firestore.collection('private_chats').doc(chatId).set({
-        'participants': [currentId, otherUserId],
-        'lastMessage': '',
-        'lastMessageTime': FieldValue.serverTimestamp(),
-      });
-    }
-
-    return chatId;
-  }
-
-  // Send a message
-  Future<void> sendMessage(String chatId, String message) async {
-    if (currentUser == null || message.trim().isEmpty) return;
+  Future<void> sendMessage(String chatId, String text) async {
+    final userId = currentUser?.uid;
+    if (userId == null) return;
 
     final messageData = {
-      'senderId': currentUser!.uid,
-      'message': message.trim(),
+      'senderId': userId,
+      'message': text,
       'timestamp': FieldValue.serverTimestamp(),
       'isSeen': false,
     };
 
-    await _firestore
-        .collection('private_chats')
-        .doc(chatId)
-        .collection('messages')
-        .add(messageData);
+    final messagesRef = firestore.collection('private_chats').doc(chatId).collection('messages');
+    await messagesRef.add(messageData);
 
-    await _firestore.collection('private_chats').doc(chatId).update({
-      'lastMessage': message.trim(),
+    await firestore.collection('private_chats').doc(chatId).update({
+      'lastMessage': text,
       'lastMessageTime': FieldValue.serverTimestamp(),
     });
   }
 
-  // Mark all unseen messages as seen for current user in this chat
-  Future<void> markMessagesAsSeen(String chatId, String otherUserId) async {
-    if (currentUser == null) return;
+  Future<void> markMessagesAsSeen(String chatId, String receiverId) async {
+    final userId = currentUser?.uid;
+    if (userId == null) return;
 
-    final messagesRef =
-        _firestore.collection('private_chats').doc(chatId).collection('messages');
+    final messagesRef = firestore.collection('private_chats').doc(chatId).collection('messages');
 
-    // Query messages sent by other user where isSeen == false
     final unseenMessagesQuery = await messagesRef
-        .where('senderId', isEqualTo: otherUserId)
+        .where('senderId', isEqualTo: receiverId)
         .where('isSeen', isEqualTo: false)
         .get();
 
-    if (unseenMessagesQuery.docs.isEmpty) return;
-
-    final batch = _firestore.batch();
+    final batch = firestore.batch();
 
     for (var doc in unseenMessagesQuery.docs) {
       batch.update(doc.reference, {'isSeen': true});
@@ -78,13 +144,29 @@ class PrivateChatController extends GetxController {
     await batch.commit();
   }
 
-  // Stream messages ordered by timestamp
-  Stream<QuerySnapshot> getMessagesStream(String chatId) {
-    return _firestore
+  // Typing indicator methods:
+
+  Future<void> updateTypingStatus(String chatId, bool isTyping) async {
+    final userId = currentUser?.uid;
+    if (userId == null) return;
+
+    final typingDoc = firestore.collection('private_chats').doc(chatId).collection('typing_status').doc(userId);
+
+    await typingDoc.set({'isTyping': isTyping});
+  }
+
+  Stream<Map<String, bool>> typingStatusStream(String chatId) {
+    return firestore
         .collection('private_chats')
         .doc(chatId)
-        .collection('messages')
-        .orderBy('timestamp')
-        .snapshots();
+        .collection('typing_status')
+        .snapshots()
+        .map((snapshot) {
+      final Map<String, bool> typingMap = {};
+      for (var doc in snapshot.docs) {
+        typingMap[doc.id] = doc['isTyping'] ?? false;
+      }
+      return typingMap;
+    });
   }
 }
