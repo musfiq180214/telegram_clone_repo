@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
+import 'package:telegram_clone/views/splash_screen.dart';
 
 import 'controllers/private_chat_controller.dart';
 import 'controllers/auth_controller.dart';
@@ -44,9 +45,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'Telegram Clone',
-      home: Obx(() {
-        return authController.isLoggedIn.value ? HomeScreen() : LoginScreen();
-      }),
+      home: SplashScreen(),
+      // home: Obx(() {
+      //   return authController.isLoggedIn.value ? HomeScreen() : LoginScreen();
+      // }),
     );
   }
 }

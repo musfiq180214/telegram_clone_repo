@@ -88,6 +88,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import '../services/audio_service.dart';  // <-- import audio service
 
 class PrivateChatController extends GetxController {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
@@ -95,13 +96,35 @@ class PrivateChatController extends GetxController {
 
   User? get currentUser => auth.currentUser;
 
+  // Track last message id to detect new messages
+  String? _lastMessageId;
+
   Stream<QuerySnapshot> getMessagesStream(String chatId) {
-    return firestore
+    final stream = firestore
         .collection('private_chats')
         .doc(chatId)
         .collection('messages')
         .orderBy('timestamp', descending: false)
         .snapshots();
+
+    // Listen to new snapshots to detect new messages
+    stream.listen((snapshot) {
+      if (snapshot.docs.isEmpty) return;
+
+      final latestDoc = snapshot.docs.last;
+      if (_lastMessageId != null && _lastMessageId != latestDoc.id) {
+        final data = latestDoc.data() as Map<String, dynamic>;
+        final senderId = data['senderId'];
+
+        // Play sound only if the new message is from someone else
+        if (senderId != currentUser?.uid) {
+          AudioService.playNotificationSound();
+        }
+      }
+      _lastMessageId = snapshot.docs.last.id;
+    });
+
+    return stream;
   }
 
   Future<void> sendMessage(String chatId, String text) async {
@@ -143,8 +166,6 @@ class PrivateChatController extends GetxController {
 
     await batch.commit();
   }
-
-  // Typing indicator methods:
 
   Future<void> updateTypingStatus(String chatId, bool isTyping) async {
     final userId = currentUser?.uid;
